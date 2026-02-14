@@ -198,10 +198,25 @@ fn reinstall_modded_app(
         .output()
         .context("Uninstalling vanilla APK")?;
 
-    Command::new("pm")
-        .args(["install", &temp_apk_path.to_string_lossy()])
-        .output()
-        .context("Installing modded APK")?;
+    let is_pico = get_android_device_manufacturer()
+        .map(|v| v.to_lowercase().contains("pico"))
+        .unwrap_or(false);
+
+    if is_pico {
+        Command::new("pm")
+            .args([
+                "install", 
+                "-i", "com.picovr.store", // needed to display game icon in the app launcher
+                &temp_apk_path.to_string_lossy()
+            ])
+            .output()
+            .context("Installing modded APK")?;
+    } else {
+        Command::new("pm")
+            .args(["install", &temp_apk_path.to_string_lossy()])
+            .output()
+            .context("Installing modded APK")?;
+    }
 
     info!("Granting external storage permission");
     Command::new("appops")
@@ -490,4 +505,13 @@ fn get_android_sdk_version() -> Result<i32> {
     let sdk_version_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
     let sdk_version: i32 = sdk_version_str.parse().context("Parsing Android SDK version number")?;
     Ok(sdk_version)
+}
+
+fn get_android_device_manufacturer() -> Result<String> {
+    let output = Command::new("getprop")
+        .arg("ro.product.manufacturer")
+        .output().context("Getting Android device manufacturer")?;
+    
+    let manufacturer = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    Ok(manufacturer)
 }
